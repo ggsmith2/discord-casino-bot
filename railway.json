@@ -1,0 +1,12 @@
+{
+  "name": "discord-casino-bot",
+  "plugins": [],
+  "build": {
+    "builder": "NIXPACKS",
+    "watchPatterns": ["package.json", "tsconfig.json", "src/**/*"]
+  },
+  "deploy": {
+    "startCommand": "node dist/index.js",
+    "restartPolicyType": "ON_FAILURE"
+  }
+}
