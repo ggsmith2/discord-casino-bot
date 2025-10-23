@@ -3,7 +3,10 @@
   "plugins": [],
   "build": {
     "builder": "NIXPACKS",
-    "watchPatterns": ["package.json", "tsconfig.json", "src/**/*"]
+    "watchPatterns": ["package.json", "tsconfig.json", "src/**/*"],
+    "plan": {
+      "node_version": "20"
+    }
   },
   "deploy": {
     "startCommand": "node dist/index.js",
