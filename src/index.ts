@@ -1,5 +1,6 @@
 import "dotenv/config";
 import {
+  ActivityType,
   ChatInputCommandInteraction,
   Client,
   EmbedBuilder,
@@ -19,6 +20,10 @@ function money(n: number) {
 
 client.once("clientReady", () => {
   console.log(`✅ Logged in as ${client.user?.tag}`);
+  client.user?.setPresence({
+    activities: [{ name: "Casino Games 🎰", type: ActivityType.Playing }],
+    status: "online"
+  });
 });
 
 client.on("interactionCreate", async interaction => {
