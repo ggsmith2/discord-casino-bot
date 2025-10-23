@@ -17,7 +17,7 @@ function money(n: number) {
   return new Intl.NumberFormat().format(n);
 }
 
-client.once("ready", () => {
+client.once("clientReady", () => {
   console.log(`✅ Logged in as ${client.user?.tag}`);
 });
 
