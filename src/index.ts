@@ -43,6 +43,8 @@ import { playSlots } from "./games/slots.js";
 // ---------- Core Setup ----------
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 const STARTING_CASH = Number(process.env.STARTING_CASH ?? 5000);
+const MENU_COLOR = 0x7c4dff;  // neon purple
+const ACCENT_COLOR = 0xffd54f; // gold accent
 // ---------- Flavor ----------
 const loreSnippets = [
   "The Vault was carved from a comet shard that fell into the heart of Elysian City.",
