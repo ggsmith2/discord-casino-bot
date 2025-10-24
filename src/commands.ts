@@ -52,8 +52,16 @@ const commandBuilders = [
     .addNumberOption(o => o.setName("amount").setDescription("Amount to gamble").setRequired(true)),
   new SlashCommandBuilder()
     .setName("vaultaccess")
-    .setDescription("Request vault access for a character")
-    .addStringOption(o => o.setName("character").setDescription("Character name").setRequired(true)),
+    .setDescription("Interact with the shared Vault pool")
+    .addStringOption(o => o.setName("character").setDescription("Character name").setRequired(true))
+    .addStringOption(o =>
+      o
+        .setName("action")
+        .setDescription("Deposit to or withdraw from the pool")
+        .setRequired(true)
+        .addChoices({ name: "Deposit", value: "deposit" }, { name: "Withdraw", value: "withdraw" })
+    )
+    .addNumberOption(o => o.setName("amount").setDescription("Amount of chips").setRequired(true)),
   new SlashCommandBuilder()
     .setName("riftopen")
     .setDescription("Open a rift at a location")
@@ -66,7 +74,8 @@ const commandBuilders = [
     .setName("duel")
     .setDescription("Initiate a duel between two characters")
     .addStringOption(o => o.setName("character1").setDescription("First character").setRequired(true))
-    .addStringOption(o => o.setName("character2").setDescription("Second character").setRequired(true)),
+    .addStringOption(o => o.setName("character2").setDescription("Second character").setRequired(true))
+    .addNumberOption(o => o.setName("wager").setDescription("Optional wager in chips")),
   new SlashCommandBuilder()
     .setName("divinetrial")
     .setDescription("Begin a divine trial for a character")

@@ -1,4 +1,24 @@
-import { addBalance, getWallet, setLastDaily, topRich } from "./db.js";
+import {
+  addBalance,
+  addXp,
+  adjustVaultBalance,
+  banCharacter,
+  factionStats as factionStatsDb,
+  getFaction,
+  getLoreHistory,
+  getStats as getProgressDb,
+  getVaultBalance,
+  getWallet,
+  listInventory,
+  recordLore,
+  setRule,
+  getRules,
+  setLastDaily,
+  setFaction,
+  topRich,
+  unbanCharacter,
+  upsertInventory
+} from "./db.js";
 
 export type DailyResult =
   | { ok: true; amount: number; balance: number }
@@ -7,18 +27,22 @@ export type DailyResult =
 export function getBalance(userId: string) {
   return getWallet(userId).balance;
 }
+
 export function canAfford(userId: string, amount: number) {
   return getWallet(userId).balance >= amount;
 }
+
 export function credit(userId: string, amount: number) {
   addBalance(userId, amount);
   return getBalance(userId);
 }
+
 export function debit(userId: string, amount: number) {
   if (!canAfford(userId, amount)) throw new Error("Insufficient funds");
   addBalance(userId, -amount);
   return getBalance(userId);
 }
+
 export function grantDaily(userId: string, now = Date.now()): DailyResult {
   const DAILY = Number(process.env.DAILY_AMOUNT ?? 1000);
   const w = getWallet(userId);
@@ -32,12 +56,72 @@ export function grantDaily(userId: string, now = Date.now()): DailyResult {
   setLastDaily(userId, now);
   return { ok: true, amount: DAILY, balance: getBalance(userId) };
 }
+
 export function transfer(fromId: string, toId: string, amount: number) {
   if (amount <= 0) throw new Error("Amount must be positive");
   debit(fromId, amount);
   credit(toId, amount);
   return { from: getBalance(fromId), to: getBalance(toId) };
 }
+
 export function leaderboard(limit = 10) {
   return topRich(limit);
+}
+
+export function grantXp(userId: string, amount: number) {
+  return addXp(userId, amount);
+}
+
+export function getProgress(userId: string) {
+  return getProgressDb(userId);
+}
+
+export function addItem(userId: string, item: string, qty: number) {
+  upsertInventory(userId, item, qty);
+  return listInventory(userId);
+}
+
+export function getInventory(userId: string) {
+  return listInventory(userId);
+}
+
+export function alignFaction(userId: string, faction: string) {
+  setFaction(userId, faction);
+  return getFaction(userId);
+}
+
+export function vaultBalance() {
+  return getVaultBalance();
+}
+
+export function adjustVault(delta: number) {
+  return adjustVaultBalance(delta);
+}
+
+export function addLore(userId: string, topic: string, detail: string) {
+  recordLore(userId, topic, detail);
+}
+
+export function loreHistory(userId: string) {
+  return getLoreHistory(userId);
+}
+
+export function addBan(userId: string, character: string) {
+  banCharacter(userId, character);
+}
+
+export function removeBan(userId: string, character: string) {
+  unbanCharacter(userId, character);
+}
+
+export function factionSnapshot() {
+  return factionStatsDb();
+}
+
+export function updateRule(key: string, value: string) {
+  setRule(key, value);
+}
+
+export function currentRules() {
+  return getRules();
 }
