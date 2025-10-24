@@ -43,10 +43,6 @@ import { playSlots } from "./games/slots.js";
 // ---------- Core Setup ----------
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 const STARTING_CASH = Number(process.env.STARTING_CASH ?? 5000);
-const MENU_TIMEOUT = 60_000;
-function money(n: number) {
-  return new Intl.NumberFormat().format(n);
-}
 // ---------- Flavor ----------
 const loreSnippets = [
   "The Vault was carved from a comet shard that fell into the heart of Elysian City.",
@@ -207,10 +203,6 @@ async function help(interaction: ChatInputCommandInteraction) {
 // ============================================================================
 // ===================== Vault Neon + Cosmic Menu =====================
 type MenuPage = "home" | "economy" | "inventory" | "factions" | "lore" | "rules";
-
-const MENU_TIMEOUT = 60_000; // 60s UI lifetime
-const MENU_COLOR = 0x7c4dff; // neon purple
-const ACCENT_COLOR = 0xffd54f; // gold
 
 // Pretty money
 function money(n: number) {
