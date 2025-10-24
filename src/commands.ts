@@ -1,6 +1,6 @@
 import { SlashCommandBuilder, SlashCommandSubcommandBuilder } from "discord.js";
 
-export const definitions = [
+const commandBuilders = [
   new SlashCommandBuilder().setName("help").setDescription("Show bot help"),
   new SlashCommandBuilder().setName("ping").setDescription("Ping the bot"),
   new SlashCommandBuilder().setName("balance").setDescription("Show your wallet balance"),
@@ -140,4 +140,8 @@ export const definitions = [
     .setName("undoban")
     .setDescription("Undo a ban for a character")
     .addStringOption(o => o.setName("character").setDescription("Character name").setRequired(true))
-].map(c => c.toJSON());
+];
+
+const uniqueBuilders = Array.from(new Map(commandBuilders.map(builder => [builder.name, builder])).values());
+
+export const definitions = uniqueBuilders.map(builder => builder.toJSON());
