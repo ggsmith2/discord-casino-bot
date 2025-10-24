@@ -63,48 +63,87 @@ db.exec(`
     key TEXT PRIMARY KEY,
     value TEXT NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS player_saves (
+    user_id TEXT PRIMARY KEY,
+    data TEXT NOT NULL,
+    saved_at INTEGER NOT NULL DEFAULT (strftime('%s','now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS npc_settings (
+    guild_id TEXT PRIMARY KEY,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    cooldown INTEGER NOT NULL DEFAULT 45
+  );
 `);
 
 export function getWallet(userId: string) {
-  const row = db.prepare("SELECT user_id, balance, last_daily FROM wallets WHERE user_id = ?").get(userId);
-  if (row) return row as { user_id: string; balance: number; last_daily: number };
-  db.prepare("INSERT INTO wallets (user_id, balance, last_daily) VALUES (?, ?, 0)")
-    .run(userId, Number(process.env.STARTING_CASH ?? 5000));
-  return db.prepare("SELECT user_id, balance, last_daily FROM wallets WHERE user_id = ?").get(userId) as any;
+  const row = db
+    .prepare("SELECT user_id, balance, last_daily, xp, level FROM wallets WHERE user_id = ?")
+    .get(userId) as { user_id: string; balance: number; last_daily: number; xp: number; level: number } | undefined;
+  if (row) return row;
+  db.prepare("INSERT INTO wallets (user_id, balance, last_daily) VALUES (?, ?, 0)").run(
+    userId,
+    Number(process.env.STARTING_CASH ?? 5000)
+  );
+  return db
+    .prepare("SELECT user_id, balance, last_daily, xp, level FROM wallets WHERE user_id = ?")
+    .get(userId) as { user_id: string; balance: number; last_daily: number; xp: number; level: number };
 }
 
 export function addBalance(userId: string, delta: number) {
   db.prepare("UPDATE wallets SET balance = balance + ? WHERE user_id = ?").run(delta, userId);
 }
+
 export function setLastDaily(userId: string, ts: number) {
   db.prepare("UPDATE wallets SET last_daily = ? WHERE user_id = ?").run(ts, userId);
 }
+
 export function topRich(limit = 10) {
-  return db.prepare("SELECT user_id, balance FROM wallets ORDER BY balance DESC LIMIT ?").all(limit) as { user_id: string; balance: number }[];
+  return db
+    .prepare("SELECT user_id, balance FROM wallets ORDER BY balance DESC LIMIT ?")
+    .all(limit) as { user_id: string; balance: number }[];
 }
 
 export function addXp(userId: string, amount: number) {
   if (amount <= 0) return getStats(userId);
   db.prepare("UPDATE wallets SET xp = xp + ? WHERE user_id = ?").run(amount, userId);
   const stats = getStats(userId);
-  const nextLevelThreshold = (stats.level ** 2) * 100;
-  if (stats.xp >= nextLevelThreshold) {
-    db.prepare("UPDATE wallets SET level = level + 1, xp = xp - ? WHERE user_id = ?").run(nextLevelThreshold, userId);
+  const threshold = (stats.level ** 2) * 100;
+  if (stats.xp >= threshold) {
+    db.prepare("UPDATE wallets SET level = level + 1, xp = xp - ? WHERE user_id = ?").run(threshold, userId);
   }
   return getStats(userId);
 }
 
 export function getStats(userId: string) {
-  const row = db.prepare("SELECT xp, level FROM wallets WHERE user_id = ?").get(userId);
+  const row = db
+    .prepare("SELECT xp, level FROM wallets WHERE user_id = ?")
+    .get(userId) as { xp: number; level: number } | undefined;
   if (!row) {
     addBalance(userId, 0);
     return { xp: 0, level: 1 };
   }
-  return row as { xp: number; level: number };
+  return row;
+}
+
+export function setWalletState(
+  userId: string,
+  state: { balance: number; last_daily: number; xp: number; level: number }
+) {
+  db.prepare("UPDATE wallets SET balance = ?, last_daily = ?, xp = ?, level = ? WHERE user_id = ?").run(
+    state.balance,
+    state.last_daily,
+    state.xp,
+    state.level,
+    userId
+  );
 }
 
 export function upsertInventory(userId: string, item: string, delta: number) {
-  const row = db.prepare("SELECT quantity FROM inventory WHERE user_id = ? AND item = ?").get(userId, item) as { quantity: number } | undefined;
+  const row = db
+    .prepare("SELECT quantity FROM inventory WHERE user_id = ? AND item = ?")
+    .get(userId, item) as { quantity: number } | undefined;
   if (!row) {
     db.prepare("INSERT INTO inventory (user_id, item, quantity) VALUES (?, ?, ?)").run(userId, item, Math.max(delta, 0));
   } else {
@@ -116,6 +155,18 @@ export function upsertInventory(userId: string, item: string, delta: number) {
   }
 }
 
+export function replaceInventory(userId: string, items: { item: string; quantity: number }[]) {
+  const insert = db.prepare("INSERT INTO inventory (user_id, item, quantity) VALUES (?, ?, ?)");
+  const txn = db.transaction((data: { item: string; quantity: number }[]) => {
+    db.prepare("DELETE FROM inventory WHERE user_id = ?").run(userId);
+    for (const entry of data) {
+      if (entry.quantity <= 0) continue;
+      insert.run(userId, entry.item, entry.quantity);
+    }
+  });
+  txn(items);
+}
+
 export function listInventory(userId: string) {
   return db
     .prepare("SELECT item, quantity FROM inventory WHERE user_id = ? ORDER BY item ASC")
@@ -123,38 +174,69 @@ export function listInventory(userId: string) {
 }
 
 export function setFaction(userId: string, faction: string) {
-  db.prepare("INSERT INTO factions (user_id, faction, joined_at) VALUES (?, ?, strftime('%s','now')) ON CONFLICT(user_id) DO UPDATE SET faction=excluded.faction, joined_at=excluded.joined_at").run(userId, faction);
+  db.prepare(
+    "INSERT INTO factions (user_id, faction, joined_at) VALUES (?, ?, strftime('%s','now')) ON CONFLICT(user_id) DO UPDATE SET faction = excluded.faction, joined_at = excluded.joined_at"
+  ).run(userId, faction);
+}
+
+export function clearFaction(userId: string) {
+  db.prepare("DELETE FROM factions WHERE user_id = ?").run(userId);
 }
 
 export function getFaction(userId: string) {
-  return db.prepare("SELECT faction, joined_at FROM factions WHERE user_id = ?").get(userId) as { faction: string; joined_at: number } | undefined;
+  return db
+    .prepare("SELECT faction, joined_at FROM factions WHERE user_id = ?")
+    .get(userId) as { faction: string; joined_at: number } | undefined;
 }
 
 export function factionStats() {
   return db
-    .prepare("SELECT faction, COUNT(*) as members FROM factions GROUP BY faction ORDER BY members DESC")
+    .prepare("SELECT faction, COUNT(*) AS members FROM factions GROUP BY faction ORDER BY members DESC")
     .all() as { faction: string; members: number }[];
 }
 
 export function banCharacter(userId: string, character: string) {
-  db.prepare("INSERT OR REPLACE INTO bans (user_id, character, banned_at) VALUES (?, ?, strftime('%s','now'))").run(userId, character);
+  db.prepare(
+    "INSERT OR REPLACE INTO bans (user_id, character, banned_at) VALUES (?, ?, strftime('%s','now'))"
+  ).run(userId, character);
 }
 
 export function unbanCharacter(userId: string, character: string) {
   db.prepare("DELETE FROM bans WHERE user_id = ? AND character = ?").run(userId, character);
 }
 
-export function isBanned(userId: string, character: string) {
-  const row = db.prepare("SELECT 1 FROM bans WHERE user_id = ? AND character = ?").get(userId, character);
-  return !!row;
+export function listBans(userId: string) {
+  return db
+    .prepare("SELECT character, banned_at FROM bans WHERE user_id = ? ORDER BY banned_at DESC")
+    .all(userId) as { character: string; banned_at: number }[];
+}
+
+export function replaceBans(userId: string, characters: string[]) {
+  const txn = db.transaction((chars: string[]) => {
+    db.prepare("DELETE FROM bans WHERE user_id = ?").run(userId);
+    const insert = db.prepare(
+      "INSERT INTO bans (user_id, character, banned_at) VALUES (?, ?, strftime('%s','now'))"
+    );
+    for (const name of chars) insert.run(userId, name);
+  });
+  txn(characters);
 }
 
 export function logDuel(challenger: string, opponent: string, winner: string, wager: number) {
-  db.prepare("INSERT INTO duel_logs (challenger, opponent, winner, wager) VALUES (?, ?, ?, ?)").run(challenger, opponent, winner, wager);
+  db.prepare("INSERT INTO duel_logs (challenger, opponent, winner, wager) VALUES (?, ?, ?, ?)").run(
+    challenger,
+    opponent,
+    winner,
+    wager
+  );
 }
 
 export function recordLore(userId: string, topic: string, detail: string) {
-  db.prepare("INSERT INTO lore_discoveries (user_id, topic, detail) VALUES (?, ?, ?)").run(userId, topic, detail);
+  db.prepare("INSERT INTO lore_discoveries (user_id, topic, detail) VALUES (?, ?, ?)").run(
+    userId,
+    topic,
+    detail
+  );
 }
 
 export function getLoreHistory(userId: string) {
@@ -164,16 +246,20 @@ export function getLoreHistory(userId: string) {
 }
 
 export function getVaultBalance() {
-  const row = db.prepare("SELECT balance FROM vault_pool WHERE id = 1").get() as { balance: number } | undefined;
+  const row = db
+    .prepare("SELECT balance FROM vault_pool WHERE id = 1")
+    .get() as { balance: number } | undefined;
   if (!row) {
     db.prepare("INSERT INTO vault_pool (id, balance) VALUES (1, 0)").run();
     return 0;
   }
-  return row.balance as number;
+  return row.balance;
 }
 
 export function adjustVaultBalance(delta: number) {
-  db.prepare("INSERT INTO vault_pool (id, balance) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET balance = balance + excluded.balance").run(delta);
+  db.prepare(
+    "INSERT INTO vault_pool (id, balance) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET balance = balance + excluded.balance"
+  ).run(delta);
   const current = getVaultBalance();
   if (current < 0) {
     db.prepare("UPDATE vault_pool SET balance = 0 WHERE id = 1").run();
@@ -183,9 +269,46 @@ export function adjustVaultBalance(delta: number) {
 }
 
 export function setRule(key: string, value: string) {
-  db.prepare("INSERT INTO vault_rules (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(key, value);
+  db.prepare(
+    "INSERT INTO vault_rules (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+  ).run(key, value);
 }
 
 export function getRules() {
   return db.prepare("SELECT key, value FROM vault_rules").all() as { key: string; value: string }[];
+}
+
+export function writePlayerSave(userId: string, data: string) {
+  db.prepare(
+    "INSERT INTO player_saves (user_id, data, saved_at) VALUES (?, ?, strftime('%s','now')) ON CONFLICT(user_id) DO UPDATE SET data = excluded.data, saved_at = excluded.saved_at"
+  ).run(userId, data);
+}
+
+export function readPlayerSave(userId: string) {
+  return db
+    .prepare("SELECT data, saved_at FROM player_saves WHERE user_id = ?")
+    .get(userId) as { data: string; saved_at: number } | undefined;
+}
+
+export function clearPlayerSave(userId: string) {
+  db.prepare("DELETE FROM player_saves WHERE user_id = ?").run(userId);
+}
+
+export function npcSetting(guildId: string) {
+  const row = db
+    .prepare("SELECT enabled, cooldown FROM npc_settings WHERE guild_id = ?")
+    .get(guildId) as { enabled: number; cooldown: number } | undefined;
+  return row ?? { enabled: 1, cooldown: 45 };
+}
+
+export function setNpcEnabled(guildId: string, enabled: boolean) {
+  db.prepare(
+    "INSERT INTO npc_settings (guild_id, enabled) VALUES (?, ?) ON CONFLICT(guild_id) DO UPDATE SET enabled = excluded.enabled"
+  ).run(guildId, enabled ? 1 : 0);
+}
+
+export function setNpcCooldown(guildId: string, seconds: number) {
+  db.prepare(
+    "INSERT INTO npc_settings (guild_id, cooldown) VALUES (?, ?) ON CONFLICT(guild_id) DO UPDATE SET cooldown = excluded.cooldown"
+  ).run(guildId, seconds);
 }

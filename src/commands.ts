@@ -4,6 +4,20 @@ const commandBuilders = [
   new SlashCommandBuilder().setName("help").setDescription("Show bot help"),
   new SlashCommandBuilder().setName("ping").setDescription("Ping the bot"),
   new SlashCommandBuilder().setName("menu").setDescription("Open the Vault Casino interactive menu"),
+  new SlashCommandBuilder().setName("save").setDescription("Save your Vault Casino progress"),
+  new SlashCommandBuilder().setName("load").setDescription("Load your previously saved progress"),
+  new SlashCommandBuilder()
+    .setName("npc")
+    .setDescription("Enable or disable the AI NPC for this server")
+    .addBooleanOption(o => o.setName("enabled").setDescription("Enable AI NPC").setRequired(true))
+    .addIntegerOption(o =>
+      o
+        .setName("cooldown")
+        .setDescription("Optional cooldown in seconds between AI interactions (15-300)")
+        .setMinValue(15)
+        .setMaxValue(300)
+        .setRequired(false)
+    ),
   new SlashCommandBuilder().setName("balance").setDescription("Show your wallet balance"),
   new SlashCommandBuilder().setName("daily").setDescription("Claim your daily cash"),
   new SlashCommandBuilder().setName("leaderboard").setDescription("Top balances"),
@@ -40,7 +54,6 @@ const commandBuilders = [
         .setDescription("Auto blackjack vs dealer")
         .addIntegerOption(o => o.setName("amount").setDescription("Wager").setRequired(true))
     ),
-  // Gameplay & World Interaction Commands
   // Gameplay & World Interaction Commands
   new SlashCommandBuilder()
     .setName("slots")

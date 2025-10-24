@@ -9,12 +9,22 @@ import {
   getStats as getProgressDb,
   getVaultBalance,
   getWallet,
+  listBans,
   listInventory,
   recordLore,
   setRule,
   getRules,
   setLastDaily,
   setFaction,
+  clearFaction,
+  replaceInventory,
+  setWalletState,
+  replaceBans,
+  writePlayerSave,
+  readPlayerSave,
+  npcSetting,
+  setNpcEnabled,
+  setNpcCooldown,
   topRich,
   unbanCharacter,
   upsertInventory
@@ -124,4 +134,64 @@ export function updateRule(key: string, value: string) {
 
 export function currentRules() {
   return getRules();
+}
+
+export type PlayerSnapshot = {
+  wallet: { balance: number; last_daily: number; xp: number; level: number };
+  inventory: { item: string; quantity: number }[];
+  faction?: string;
+  bans: string[];
+  savedAt: number;
+};
+
+export function buildSnapshot(userId: string): PlayerSnapshot {
+  const wallet = getWallet(userId);
+  const inventory = getInventory(userId);
+  const faction = getFaction(userId)?.faction;
+  const bans = listBans(userId).map(entry => entry.character);
+  return {
+    wallet: {
+      balance: wallet.balance,
+      last_daily: wallet.last_daily,
+      xp: wallet.xp ?? 0,
+      level: wallet.level ?? 1
+    },
+    inventory,
+    faction,
+    bans,
+    savedAt: Date.now()
+  };
+}
+
+export function savePlayerState(userId: string) {
+  const snapshot = buildSnapshot(userId);
+  writePlayerSave(userId, JSON.stringify(snapshot));
+  return snapshot;
+}
+
+export function loadPlayerState(userId: string) {
+  const record = readPlayerSave(userId);
+  if (!record) throw new Error("No save data found.");
+  const snapshot = JSON.parse(record.data) as PlayerSnapshot;
+  setWalletState(userId, snapshot.wallet);
+  replaceInventory(userId, snapshot.inventory ?? []);
+  if (snapshot.faction) {
+    setFaction(userId, snapshot.faction);
+  } else {
+    clearFaction(userId);
+  }
+  replaceBans(userId, snapshot.bans ?? []);
+  return snapshot;
+}
+
+export function npcSettings(guildId: string) {
+  return npcSetting(guildId);
+}
+
+export function setNpcEnabledFlag(guildId: string, enabled: boolean) {
+  setNpcEnabled(guildId, enabled);
+}
+
+export function setNpcCooldownSeconds(guildId: string, seconds: number) {
+  setNpcCooldown(guildId, seconds);
 }

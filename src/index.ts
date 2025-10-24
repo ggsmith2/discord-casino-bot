@@ -40,6 +40,10 @@ import { logDuel } from "./db.js";
 import { playBlackjack } from "./games/blackjack.js";
 import { playCoinflip } from "./games/coinflip.js";
 import { playSlots } from "./games/slots.js";
+import { startAutoUpdateSystem } from "./automation/autoUpdate.js";
+import { initializeMaintenanceAI } from "./maintenance/aiMaintenance.js";
+import { startLimitedEventScheduler } from "./events/limitedEvents.js";
+import { spawnNpcManager } from "./ai/npcManager.js";
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 const STARTING_CASH = Number(process.env.STARTING_CASH ?? 5000);
@@ -1070,6 +1074,11 @@ async function handleUndoBanCommand(interaction: ChatInputCommandInteraction) {
     .setColor(0x4caf50);
   await interaction.reply({ embeds: [embed], ephemeral: true });
 }
+
+initializeMaintenanceAI(client);
+startAutoUpdateSystem(client);
+startLimitedEventScheduler(client);
+spawnNpcManager(client);
 
 process.on("SIGTERM", () => {
   console.log("Received SIGTERM. Closing Vault Casino bot.");
