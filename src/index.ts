@@ -58,6 +58,7 @@ const commandHandlers: Record<string, (interaction: ChatInputCommandInteraction)
   gamble: handleGambleCommand,
   vaultaccess: handleVaultAccessCommand,
   riftopen: handleRiftOpenCommand,
+  summonbiome: handleSummonBiomeCommand,
   duel: handleDuelCommand,
   divinetrial: handleDivineTrialCommand,
   ascend: handleAscendCommand,
@@ -306,6 +307,20 @@ async function handleRiftOpenCommand(interaction: ChatInputCommandInteraction) {
     .setTitle("🌀 Rift Opened")
     .setDescription(`A shimmering rift tears open above **${location}**. Echoes pour into the Vault.`)
     .setColor(0x3f51b5);
+  await interaction.reply({ embeds: [embed] });
+}
+
+async function handleSummonBiomeCommand(interaction: ChatInputCommandInteraction) {
+  const biome = interaction.options.getString("biome")?.trim();
+  if (!biome) {
+    return interaction.reply({ content: "🌍 Usage: /summonbiome biome:<name>", ephemeral: true });
+  }
+  const climates = ["verdant", "crystalline", "ashen", "luminous", "storm-tossed"];
+  const flavor = climates[Math.floor(Math.random() * climates.length)];
+  const embed = new EmbedBuilder()
+    .setTitle("🌍 Biome Summoned")
+    .setDescription(`The Vault manifests a **${biome}** biome, ${flavor} winds swirling through the halls.`)
+    .setColor(0x4caf50);
   await interaction.reply({ embeds: [embed] });
 }
 

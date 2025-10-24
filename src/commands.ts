@@ -40,6 +40,7 @@ const commandBuilders = [
         .addIntegerOption(o => o.setName("amount").setDescription("Wager").setRequired(true))
     ),
   // Gameplay & World Interaction Commands
+  // Gameplay & World Interaction Commands
   new SlashCommandBuilder()
     .setName("slots")
     .setDescription("Run slots for a character and wager")
@@ -57,6 +58,10 @@ const commandBuilders = [
     .setName("riftopen")
     .setDescription("Open a rift at a location")
     .addStringOption(o => o.setName("location").setDescription("Location to open the rift").setRequired(true)),
+  new SlashCommandBuilder()
+    .setName("summonbiome")
+    .setDescription("Summon a biome into the Vault")
+    .addStringOption(o => o.setName("biome").setDescription("Biome name").setRequired(true)),
   new SlashCommandBuilder()
     .setName("duel")
     .setDescription("Initiate a duel between two characters")
@@ -142,6 +147,14 @@ const commandBuilders = [
     .addStringOption(o => o.setName("character").setDescription("Character name").setRequired(true))
 ];
 
-const uniqueBuilders = Array.from(new Map(commandBuilders.map(builder => [builder.name, builder])).values());
+const seen = new Set<string>();
+const uniqueBuilders = commandBuilders.filter(builder => {
+  const name = builder.name;
+  if (seen.has(name)) {
+    return false;
+  }
+  seen.add(name);
+  return true;
+});
 
 export const definitions = uniqueBuilders.map(builder => builder.toJSON());

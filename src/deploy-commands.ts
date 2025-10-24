@@ -10,8 +10,8 @@ const rest = new REST({ version: "10" }).setToken(token);
 
 async function main() {
   console.log("Deploying slash commands to guild:", guildId);
-  await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body: definitions });
-  console.log("✅ Commands deployed to guild.");
+  await rest.put(Routes.applicationCommands(clientId), { body: definitions });
+  console.log("✅ Commands deployed globally.");
 }
 
 main().catch((e) => {
