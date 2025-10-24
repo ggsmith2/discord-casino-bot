@@ -3,6 +3,7 @@ import { SlashCommandBuilder, SlashCommandSubcommandBuilder } from "discord.js";
 const commandBuilders = [
   new SlashCommandBuilder().setName("help").setDescription("Show bot help"),
   new SlashCommandBuilder().setName("ping").setDescription("Ping the bot"),
+  new SlashCommandBuilder().setName("menu").setDescription("Open the Vault Casino interactive menu"),
   new SlashCommandBuilder().setName("balance").setDescription("Show your wallet balance"),
   new SlashCommandBuilder().setName("daily").setDescription("Claim your daily cash"),
   new SlashCommandBuilder().setName("leaderboard").setDescription("Top balances"),

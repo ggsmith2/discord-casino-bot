@@ -10,6 +10,7 @@ import {
   EmbedBuilder,
   GatewayIntentBits,
   PermissionsBitField,
+  StringSelectMenuBuilder,
   type Guild,
   type Message
 } from "discord.js";
@@ -42,6 +43,8 @@ import { playSlots } from "./games/slots.js";
 
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 const STARTING_CASH = Number(process.env.STARTING_CASH ?? 5000);
+const MENU_TIMEOUT = 60_000;
+const activeMenus = new Map<string, string>(); // messageId -> userId
 
 function money(n: number) {
   return new Intl.NumberFormat().format(n);
@@ -1074,3 +1077,9 @@ process.on("SIGTERM", () => {
 });
 
 client.login(process.env.BOT_TOKEN);
+
+
+
+
+
+
