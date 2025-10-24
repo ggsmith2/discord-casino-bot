@@ -32,6 +32,8 @@ import {
   grantXp,
   leaderboard,
   loreHistory,
+  savePlayerState,
+  loadPlayerState,
   updateRule,
   removeBan,
   vaultBalance
@@ -46,7 +48,14 @@ import { startLimitedEventScheduler } from "./events/limitedEvents.js";
 import { spawnNpcManager } from "./ai/npcManager.js";
 
 // ---------- Core Setup ----------
-const client = new Client({ intents: [GatewayIntentBits.Guilds] });
+const client = new Client({
+  intents: [
+    GatewayIntentBits.Guilds,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMembers
+  ]
+});
 const STARTING_CASH = Number(process.env.STARTING_CASH ?? 5000);
 const MENU_COLOR = 0x7c4dff;  // neon purple
 const ACCENT_COLOR = 0xffd54f; // gold accent
@@ -137,6 +146,8 @@ client.once("ready", () => {
 const commandHandlers: Record<string, (interaction: ChatInputCommandInteraction) => Promise<unknown>> = {
   help,
   ping: handlePing,
+  save: handleSaveCommand,
+  load: handleLoadCommand,
   balance,
   daily,
   leaderboard: showLeaderboard,
@@ -204,6 +215,48 @@ async function help(interaction: ChatInputCommandInteraction) {
     )
     .setColor(0xffc107);
   return interaction.reply({ embeds: [embed], ephemeral: true });
+}
+// Save/Load Persistence
+async function handleSaveCommand(interaction: ChatInputCommandInteraction) {
+  await interaction.deferReply({ ephemeral: true });
+  try {
+    const snapshot = savePlayerState(interaction.user.id);
+    const savedAt = new Date(snapshot.savedAt).toLocaleString();
+    const relics = snapshot.inventory.length;
+    const faction = snapshot.faction ?? "Unaffiliated";
+    await interaction.editReply({
+      content: [
+        "Progress archived in the Vault ledgers.",
+        `Balance: $${money(snapshot.wallet.balance)} | Level ${snapshot.wallet.level}`,
+        `Relics tracked: ${relics} | Faction: ${faction}`,
+        `Timestamp: ${savedAt}`
+      ].join("\n")
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error while saving.";
+    await interaction.editReply({ content: `Failed to save your state: ${message}` });
+  }
+}
+
+async function handleLoadCommand(interaction: ChatInputCommandInteraction) {
+  await interaction.deferReply({ ephemeral: true });
+  try {
+    const snapshot = loadPlayerState(interaction.user.id);
+    const savedAt = new Date(snapshot.savedAt).toLocaleString();
+    const relics = snapshot.inventory.length;
+    const faction = snapshot.faction ?? "Unaffiliated";
+    await interaction.editReply({
+      content: [
+        "Vault save restored successfully.",
+        `Balance: $${money(snapshot.wallet.balance)} | Level ${snapshot.wallet.level}`,
+        `Relics restored: ${relics} | Faction: ${faction}`,
+        `Original save timestamp: ${savedAt}`
+      ].join("\n")
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error while loading.";
+    await interaction.editReply({ content: `Failed to load your state: ${message}` });
+  }
 }
 // ============================================================================
 //                               EPHEMERAL /MENU
