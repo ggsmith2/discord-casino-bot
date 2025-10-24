@@ -205,154 +205,221 @@ async function help(interaction: ChatInputCommandInteraction) {
 // ============================================================================
 //                               EPHEMERAL /MENU
 // ============================================================================
-type MenuPage = "home" | "gameplay" | "lore" | "meta";
-function menuButtons(page: MenuPage) {
-  return new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder().setCustomId("menu:back").setLabel("◀️ Back").setStyle(ButtonStyle.Secondary).setDisabled(page === "home"),
-    new ButtonBuilder().setCustomId("menu:home").setLabel("🏠 Home").setStyle(ButtonStyle.Secondary).setDisabled(page === "home"),
-    new ButtonBuilder().setCustomId("menu:next").setLabel("▶️ Next").setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder().setCustomId("menu:close").setLabel("❌ Close").setStyle(ButtonStyle.Danger)
-  );
+// ===================== Vault Neon + Cosmic Menu =====================
+type MenuPage = "home" | "economy" | "inventory" | "factions" | "lore" | "rules";
+
+const MENU_TIMEOUT = 60_000; // 60s UI lifetime
+const MENU_COLOR = 0x7c4dff; // neon purple
+const ACCENT_COLOR = 0xffd54f; // gold
+
+// Pretty money
+function money(n: number) {
+  return new Intl.NumberFormat().format(n);
 }
-function menuSelect(current: MenuPage) {
-  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(
-    new StringSelectMenuBuilder()
-      .setCustomId("menu:select")
-      .setPlaceholder("Jump to a section…")
-      .addOptions([
-        { label: "Home", value: "home", emoji: "🏠", default: current === "home" },
-        { label: "Gameplay", value: "gameplay", emoji: "🎮", default: current === "gameplay" },
-        { label: "Lore", value: "lore", emoji: "📜", default: current === "lore" },
-        { label: "Meta / System", value: "meta", emoji: "🧬", default: current === "meta" }
-      ])
-  );
-}
-function pageOrder(): MenuPage[] { return ["home", "gameplay", "lore", "meta"]; }
-function nextPage(current: MenuPage): MenuPage {
-  const order = pageOrder(); const i = order.indexOf(current);
-  return order[(i + 1) % order.length];
-}
-function prevPage(current: MenuPage): MenuPage {
-  const order = pageOrder(); const i = order.indexOf(current);
-  return order[(i - 1 + order.length) % order.length];
-}
-function homeEmbed(userId: string) {
+
+// Menu art dividers
+const DIVIDER = "════════════════════════════";
+const GLOW = "✨";
+const CHIP = "🎰";
+const STAR = "🌌";
+const SHIELD = "🛡️";
+const SCROLL = "📜";
+const BAG = "🧳";
+const LAW = "📘";
+const HOME = "🏠";
+const CLOSE = "❌";
+const BACK = "◀️";
+
+// ---------- render helpers ----------
+function menuEmbed(page: MenuPage, userId: string): EmbedBuilder {
+  // Pull fresh data each render
   const bal = getBalance(userId);
   const prog = getProgress(userId);
-  const top = leaderboard(5);
-  const topLines = top.length
-    ? top.map((r, i) => `**${i + 1}.** <@${r.user_id}> — $${money(r.balance)}`).join("\n")
-    : "_No leaders yet._";
-  return new EmbedBuilder()
-    .setTitle("🎛️ The Vault Casino")
-    .setDescription("Welcome! Use the select menu or buttons below to explore.")
-    .addFields(
-      { name: "Your Balance", value: `$${money(bal)}`, inline: true },
-      { name: "Your Level", value: `Lvl ${prog.level} • ${prog.xp} XP`, inline: true },
-      { name: "Top Patrons", value: topLines }
-    )
-    .setColor(0xffb300);
+  const vault = vaultBalance();
+  const top = leaderboard(5)
+    .map((p, i) => `**${i + 1}.** <@${p.user_id}> — $${money(p.balance)}`)
+    .join("\n");
+
+  const invLines =
+    getInventory(userId).map(it => `• **${it.item}** ×${it.quantity}`).join("\n") || "_(empty)_";
+
+  const facLines =
+    factionSnapshot().map(f => `• **${f.faction}** — ${f.members} members`).join("\n") || "_No factions yet_";
+
+  const loreLines =
+    loreHistory(userId).slice(0, 6).map(l => `• **${l.topic}**`).join("\n") || "_No echoes recorded_";
+
+  const rules =
+    currentRules().map(r => `• **${r.key}**: ${r.value}`).join("\n") || "_No active laws_";
+
+  const base = new EmbedBuilder()
+    .setColor(MENU_COLOR)
+    .setFooter({ text: "Vault UI • ephemeral to you • use Close to dismiss" });
+
+  switch (page) {
+    case "home":
+      return base
+        .setTitle(`${STAR} The Vault Casino`)
+        .setDescription(
+          `${GLOW} Welcome! Use the select menu below to explore.\n\n` +
+          `**Your Balance**\n$${money(bal)}\n\n` +
+          `**Your Level**\nLvl ${prog.level} • ${prog.xp} XP\n\n` +
+          `**Top Patrons**\n${top || "_No data yet_"}`
+        )
+        .setFields({ name: DIVIDER, value: `${CHIP} **House Vault:** $${money(vault)}` });
+
+    case "economy":
+      return base
+        .setTitle(`${CHIP} Economy Overview`)
+        .setDescription(
+          `**Balance:** $${money(bal)}\n` +
+          `**Level:** ${prog.level}\n` +
+          `**XP:** ${prog.xp}\n\n` +
+          `**House Vault:** $${money(vault)}`
+        );
+
+    case "inventory":
+      return base
+        .setTitle(`${BAG} Satchel & Relics`)
+        .setDescription(invLines);
+
+    case "factions":
+      return base
+        .setTitle(`${SHIELD} Faction Influence`)
+        .setDescription(facLines);
+
+    case "lore":
+      return base
+        .setTitle(`${SCROLL} Echoes & Lore`)
+        .setDescription(loreLines);
+
+    case "rules":
+      return base
+        .setTitle(`${LAW} Vault Codex`)
+        .setDescription(rules);
+  }
 }
-function gameplayEmbed() {
-  return new EmbedBuilder()
-    .setTitle("🎮 Gameplay & World")
-    .setDescription([
-      "**Commands**",
-      "`/slots [character] [amount]`",
-      "`/gamble [amount]`",
-      "`/duel [character1] [character2] [wager?]`",
-      "`/vaultaccess character:<name> action:<deposit|withdraw> amount:<n>`",
-      "`/ascend [character]`, `/riftopen [location]`, `/casinostart`",
-      "",
-      "**Tips**",
-      "• Use `/bet coinflip|slots|blackjack amount:<n>` for quick wagers.",
-      "• Duels support NPCs if the opponent isn’t online."
-    ].join("\n"))
-    .setColor(0x26a69a);
+
+function menuRows(page: MenuPage, ownerId: string, nonce: string) {
+  const select = new StringSelectMenuBuilder()
+    .setCustomId(`menu:${ownerId}:${nonce}:select`)
+    .setPlaceholder("📜 Jump to section…")
+    .addOptions(
+      { label: "Home", value: "home", emoji: HOME },
+      { label: "Economy", value: "economy", emoji: CHIP },
+      { label: "Inventory", value: "inventory", emoji: BAG },
+      { label: "Factions", value: "factions", emoji: SHIELD },
+      { label: "Lore", value: "lore", emoji: SCROLL },
+      { label: "Rules", value: "rules", emoji: LAW },
+    );
+
+  const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`menu:${ownerId}:${nonce}:btn:back`)
+      .setLabel("Back")
+      .setEmoji(BACK)
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`menu:${ownerId}:${nonce}:btn:home`)
+      .setLabel("Home")
+      .setEmoji(HOME)
+      .setStyle(ButtonStyle.Primary),
+    new ButtonBuilder()
+      .setCustomId(`menu:${ownerId}:${nonce}:btn:close`)
+      .setLabel("Close")
+      .setEmoji(CLOSE)
+      .setStyle(ButtonStyle.Danger),
+  );
+
+  return [
+    new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select),
+    buttons,
+  ];
 }
-function loreEmbed(userId: string) {
-  const recent = loreHistory(userId).slice(0, 5);
-  const recentLines = recent.length ? recent.map(e => `• ${e.topic}`).join("\n") : "_No echoes recorded._";
-  return new EmbedBuilder()
-    .setTitle("📜 Lore & Narrative")
-    .setDescription([
-      "**Commands**",
-      "`/loredrop [topic]`, `/echoreveal [character]`",
-      "`/prophecy [character]`, `/rewritetimeline [event]`",
-      "`/fracturetimeline [event]`, `/mergeecho [c1] [c2]`",
-      "`/relicforge [item]`, `/relictracker [item]`, `/npcmemory [character]`, `/summon [faction/npc]`",
-      "`/rewritevaultlaw [lawname]`",
-      "",
-      "**Recent Echoes**",
-      recentLines
-    ].join("\n"))
-    .setColor(0x5c6bc0);
-}
-function metaEmbed() {
-  const facts = factionSnapshot();
-  const lines = facts.length ? facts.map(f => `• **${f.faction}** — ${f.members} members`).join("\n") : "_No factions yet._";
-  return new EmbedBuilder()
-    .setTitle("🧬 Meta / System")
-    .setDescription([
-      "**Commands**",
-      "`/factionstats`, `/loreaudit`, `/balanceofeveryone`",
-      "`/ban [character]`, `/undoban [character]`",
-      "",
-      "**Faction Influence**",
-      lines
-    ].join("\n"))
-    .setColor(0x009688);
-}
+
+// ---------- /menu command ----------
 async function handleMenuCommand(interaction: ChatInputCommandInteraction) {
-  let page: MenuPage = "home";
-  const userId = interaction.user.id;
-  const render = () => {
-    const embed =
-      page === "home" ? homeEmbed(userId) :
-      page === "gameplay" ? gameplayEmbed() :
-      page === "lore" ? loreEmbed(userId) :
-      metaEmbed();
-    return {
-      embeds: [embed],
-      components: [menuSelect(page), menuButtons(page)]
-    };
-  };
-  // Ephemeral so only the user sees the menu
-  const reply = await interaction.reply({ ...render(), ephemeral: true, fetchReply: true });
-  const collector = (reply as Message).createMessageComponentCollector({
-    time: MENU_TIMEOUT,
-    componentType: ComponentType.ActionRow // will collect buttons & select menus via 'collect' below
-  } as any);
-  collector.on("collect", async (i) => {
-    // Guard: only the command invoker can use this menu
-    if (i.user.id !== userId) {
-      await i.reply({ content: "This menu isn’t for you.", ephemeral: true });
+  const ownerId = interaction.user.id;
+  const nonce = `${Date.now().toString(36)}-${interaction.id}`; // unique per menu
+  const page: MenuPage = "home";
+
+  await interaction.reply({
+    embeds: [menuEmbed(page, ownerId)],
+    components: menuRows(page, ownerId, nonce),
+    ephemeral: true, // private to opener
+  });
+}
+
+// Register /menu in your commandHandlers map if not already present:
+// commandHandlers.menu = handleMenuCommand;
+
+// ---------- Global menu component handler (buttons + select) ----------
+client.on("interactionCreate", async (i) => {
+  if (!(i.isButton() || i.isStringSelectMenu())) return;
+  if (!i.customId.startsWith("menu:")) return;
+
+  // customId format: menu:<ownerId>:<nonce>:(btn|select):<action?>
+  const parts = i.customId.split(":");
+  const ownerId = parts[1];
+  const nonce = parts[2];
+  const kind = parts[3]; // "btn" or "select"
+  const action = parts[4]; // e.g., "home" | "back" | "close"
+
+  // Only the opener can use their ephemeral menu
+  if (i.user.id !== ownerId) {
+    await i.reply({ content: "This menu isn’t for you.", ephemeral: true }).catch(() => {});
+    return;
+  }
+
+  // Keep the interaction alive so Discord doesn’t show “interaction failed”
+  // For updates we’ll use i.update(...) which also acknowledges the interaction
+  try {
+    // Compute the current page from the message’s embed, default to home
+    let currentPage: MenuPage = "home";
+    const title = (i.message.embeds?.[0]?.title ?? "").toLowerCase();
+    if (title.includes("economy")) currentPage = "economy";
+    else if (title.includes("satchel")) currentPage = "inventory";
+    else if (title.includes("faction")) currentPage = "factions";
+    else if (title.includes("echoes")) currentPage = "lore";
+    else if (title.includes("codex")) currentPage = "rules";
+
+    let nextPage: MenuPage = currentPage;
+
+    if (kind === "select" && i.isStringSelectMenu()) {
+      const v = i.values[0] as MenuPage;
+      nextPage = v;
+      await i.update({
+        embeds: [menuEmbed(nextPage, i.user.id)],
+        components: menuRows(nextPage, ownerId, nonce),
+      });
       return;
     }
-    // Select menu jump
-    if (i.isStringSelectMenu() && i.customId === "menu:select") {
-      page = i.values[0] as MenuPage;
-      await i.update(render());
-      return;
-    }
-    // Buttons
-    if (i.isButton()) {
-      if (i.customId === "menu:close") {
-        collector.stop("closed");
-        await i.update({ components: [] });
+
+    if (kind === "btn" && i.isButton()) {
+      if (action === "home") nextPage = "home";
+      else if (action === "back") nextPage = "home";
+      else if (action === "close") {
+        await i.update({
+          content: `${CLOSE} Menu closed.`,
+          components: [],
+          embeds: [],
+        }).catch(() => {});
         return;
       }
-      if (i.customId === "menu:home") page = "home";
-      if (i.customId === "menu:next") page = nextPage(page);
-      if (i.customId === "menu:back") page = prevPage(page);
-      await i.update(render());
-      return;
+
+      await i.update({
+        embeds: [menuEmbed(nextPage, i.user.id)],
+        components: menuRows(nextPage, ownerId, nonce),
+      });
     }
-  });
-  collector.on("end", async () => {
-    try { await (interaction.editReply({ components: [] })); } catch {}
-  });
-}
+  } catch (err) {
+    console.error("Menu interaction error:", err);
+    // Fallback so user never sees the red banner
+    if (!i.deferred && !i.replied) {
+      await i.deferUpdate().catch(() => {});
+    }
+  }
+});
 // ============================================================================
 //                               PUBLIC COMMANDS
 // ============================================================================
